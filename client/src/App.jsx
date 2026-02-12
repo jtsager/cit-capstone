@@ -1,60 +1,89 @@
-import { useState } from "react";
-import NewEntryView from "./NewEntryView";
+import { useEffect, useState } from "react";
+import ListView from "./pages/ListView.jsx"; import NewView from "./pages/NewPage.jsx";
+import { loadItems, saveItems } from "./storage.js";
 
-// This variable controls which part of the UI is visible:
+function App() {
+  const [items, setItems] = useState([]);
+  const [view, setView] = useState("loading"); // "loading" | "list" | "new"
+  const [isLoading, setIsLoading] = useState(true);
+  const [selectedId, setSelectedId] = useState(null);
 
-export default function App() {
-  const [view, setView] = useState("new"); // view can be "new" or "list"
+  // Effect A: load once on startup
+  useEffect(() => {
+    const saved = loadItems();
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setItems(saved);
+    setView("list");
+    setIsLoading(false);
+  }, []);
 
-  // When the view changes, this data persists:
-  const [inputText, setInputText] = useState(""); // example state to observe persistence
+  // Effect B: save whenever items change
+  useEffect(() => {
+    if (isLoading) return; // skip first load
+    saveItems(items);
+  }, [items, isLoading]);
+
+  // Effect C: reflect app state outside React (document title)
+  useEffect(() => {
+    document.title = `Items: ${items.length}`;
+  }, [items.length]);
+
+  const addItem = (title) => {
+    const clean = title.trim();
+    if (!clean) return;
+
+    // Prevent duplicates (case-insensitive)
+    const exists = items.some(
+      (it) => it.title.toLowerCase() === clean.toLowerCase()
+    );
+    if (exists) return;
+
+    setItems((prev) => {
+      const maxId = prev.reduce((m, it) => Math.max(m, it.id), 0);
+      return [...prev, { id: maxId + 1, title: clean }];
+    });
+  };
+
+  const removeItem = (id) => {
+    setItems((prev) => prev.filter((it) => it.id !== id));
+    if (selectedId === id) setSelectedId(null);
+  };
+
+  const clearAll = () => {
+    setItems([]);
+    setSelectedId(null);
+    setView("list");
+  };
 
   return (
-    <div style={{ padding: "20px" }}>
-      <h1>Lab 3 Demo</h1>
+    <div style={{ padding: "16px" }}>
+      <h1>Week 5 Demo</h1>
 
-      {/* Buttons to switch views */}
-      <button onClick={() => setView("new")}>New</button>
       <button onClick={() => setView("list")}>List</button>
+      <button onClick={() => setView("new")}>New</button>
+      <button onClick={clearAll}>Clear All</button>
 
       <hr />
 
-      {/* View Rendering */}
-      {view === "new" && (
-        <NewEntryView inputText={inputText} setInputText={setInputText} />
-      )}
-
       {view === "list" && (
-        <div>
-          <h2>List View</h2>
-          <p>Input text from other view:</p>
-          <div className="card">{inputText || "(empty)"}</div>
-        </div>
+        <ListView
+          items={items}
+          selectedId={selectedId}
+          onSelect={setSelectedId}
+          onRemove={removeItem}
+        />
       )}
 
-      {/* After moving this JSX into a component, this stopped working:After moving this JSX into a component, nothing stopped working. */}
-    
-      // This state lives in App.jsx: inputText
-
-      /*
-      Observations:
-      - Data that persisted across views:
-      - Data that reset when views changed:
-      */
-
-      /*
-      Possible future side effects in this app:
-      - Something that should happen when a view appears: maybe load saved items
-      - Something that should happen when data changes: maybe save the input somewhere
-      */
-
-      /*
-      Reflection:
-      - One thing that surprised me about switching views: the input text stayed the same
-      - One thing that felt confusing: why the component resets or doesn’t reset
-      - One question I have about how React manages data: how does React decide what state to keep?
-
-      */
+      {view === "new" && (
+        <NewView
+          onSave={(title) => {
+            addItem(title);
+            setView("list");
+          }}
+        />
+      )}
     </div>
   );
 }
+
+export default App;
